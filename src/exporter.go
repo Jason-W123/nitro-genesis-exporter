@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/offchainlabs/nitro/arbos/arbosState"
 	"github.com/offchainlabs/nitro/arbos/arbostypes"
 	"github.com/offchainlabs/nitro/statetransfer"
 	"github.com/spf13/pflag"
@@ -137,7 +138,7 @@ func StateRootFromGenesis(genesisPath string) (string, error) {
 	blockNumber := uint64(0)    // Genesis block number is 0
 	timestamp := uint64(0)      // Use timestamp from genesis.json
 
-	genesisBlock := MakeGenesisBlock(parentHash, blockNumber, timestamp, stateRoot, chainConfig)
+	genesisBlock := arbosState.MakeGenesisBlock(parentHash, blockNumber, timestamp, stateRoot, chainConfig)
 	blockHash := genesisBlock.Hash()
 
 	// 8. Return both state root and block hash
