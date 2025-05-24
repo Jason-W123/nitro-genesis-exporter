@@ -1,13 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/offchainlabs/nitro/arbos/arbostypes"
 	"github.com/offchainlabs/nitro/statetransfer"
 	"github.com/spf13/pflag"
@@ -38,95 +39,84 @@ func main() {
 	}
 
 	// Output result
-	fmt.Printf("State Root: %s\n", stateRoot)
+	fmt.Printf("%s\n", stateRoot)
 }
 
 func StateRootFromGenesis(genesisPath string) (string, error) {
 	// 1. Read genesis.json
-	// genesisJson, err := os.ReadFile(genesisPath)
-	// if err != nil {
-	// 	return "", err
-	// }
-	// var gen core.Genesis
-	// if err := json.Unmarshal(genesisJson, &gen); err != nil {
-	// 	return "", err
-	// }
+	genesisJson, err := os.ReadFile(genesisPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read genesis file: %v", err)
+	}
 
-	// Provide default values for missing required fields
-	// if gen.GasLimit == 0 {
-	// 	gen.GasLimit = 30000000 // default gas limit
-	// }
-	// if gen.Difficulty == nil {
-	// 	gen.Difficulty = big.NewInt(1) // default difficulty
-	// }
-	// if gen.Timestamp == 0 {
-	// 	gen.Timestamp = 0 // default timestamp
-	// }
+	// Debug: Print JSON info only when it's small (to avoid overwhelming output)
+	if len(genesisJson) < 1000 {
+		log.Info("Raw genesis JSON content", "content", string(genesisJson))
+	}
+	log.Info("JSON file info", "bytes", len(genesisJson), "path", genesisPath)
+
+	var gen core.Genesis
+	if err := json.Unmarshal(genesisJson, &gen); err != nil {
+		return "", fmt.Errorf("failed to unmarshal genesis JSON: %v", err)
+	}
+
+	// Validate required fields
+	if gen.Config == nil {
+		return "", fmt.Errorf("genesis config is missing")
+	}
+	if gen.Config.ArbitrumChainParams.InitialChainOwner == (common.Address{}) {
+		return "", fmt.Errorf("initial chain owner is missing in genesis config")
+	}
+
+	// Debug: Print the unmarshaled result
+	log.Info("Successfully parsed Genesis",
+		"chainId", gen.Config.ChainID,
+		"gasLimit", gen.GasLimit,
+		"timestamp", gen.Timestamp,
+		"initialArbOSVersion", gen.Config.ArbitrumChainParams.InitialArbOSVersion,
+		"initialChainOwner", gen.Config.ArbitrumChainParams.InitialChainOwner,
+		"accounts", len(gen.Alloc))
 
 	// 2. Assemble account information (if genesis.json is empty, use empty account list)
-	// var accounts []statetransfer.AccountInitializationInfo
-	// for address, account := range gen.Alloc {
-	// 	var contractInfo *statetransfer.AccountInitContractInfo
-	// 	if len(account.Code) > 0 || len(account.Storage) > 0 {
-	// 		contractInfo = &statetransfer.AccountInitContractInfo{
-	// 			Code:            account.Code,
-	// 			ContractStorage: account.Storage,
-	// 		}
-	// 	}
-	// 	accounts = append(accounts, statetransfer.AccountInitializationInfo{
-	// 		Addr:         address,
-	// 		EthBalance:   account.Balance,
-	// 		Nonce:        account.Nonce,
-	// 		ContractInfo: contractInfo,
-	// 	})
-	// }
-
-	initData := statetransfer.ArbosInitializationInfo{
-		NextBlockNumber: 0,
-		ChainOwner:      common.HexToAddress("0x860C58951A77ac2F2Cb452cC9F36B1d1FdF7c521"),
+	var accounts []statetransfer.AccountInitializationInfo
+	for address, account := range gen.Alloc {
+		var contractInfo *statetransfer.AccountInitContractInfo
+		if len(account.Code) > 0 || len(account.Storage) > 0 {
+			contractInfo = &statetransfer.AccountInitContractInfo{
+				Code:            account.Code,
+				ContractStorage: account.Storage,
+			}
+		}
+		accounts = append(accounts, statetransfer.AccountInitializationInfo{
+			Addr:         address,
+			EthBalance:   account.Balance,
+			Nonce:        account.Nonce,
+			ContractInfo: contractInfo,
+		})
 	}
-	initDataReader := statetransfer.NewMemoryInitDataReader(&initData)
-	// 3. Create initialization data reader - set correct chain owner
-	// initDataReader := statetransfer.NewMemoryInitDataReader(&statetransfer.ArbosInitializationInfo{
-	// 	ChainOwner: common.HexToAddress("0x860C58951A77ac2F2Cb452cC9F36B1d1FdF7c521"),
-	// 	Accounts:   accounts,
-	// })
 
-	// 4. Create chain configuration - use complete configuration for target chain
-	chainConfig := &params.ChainConfig{
-		ChainID:        big.NewInt(71268946402), // Target chain ID
-		HomesteadBlock: big.NewInt(0),
-		DAOForkBlock:   nil,
-		DAOForkSupport: true,
-		EIP150Block:    big.NewInt(0),
+	// 3. Get chain config
+	chainConfig := gen.Config
 
-		EIP155Block:         big.NewInt(0),
-		EIP158Block:         big.NewInt(0),
-		ByzantiumBlock:      big.NewInt(0),
-		ConstantinopleBlock: big.NewInt(0),
-		PetersburgBlock:     big.NewInt(0),
-		IstanbulBlock:       big.NewInt(0),
-		MuirGlacierBlock:    big.NewInt(0),
-		BerlinBlock:         big.NewInt(0),
-		LondonBlock:         big.NewInt(0),
-		ArbitrumChainParams: params.ArbitrumChainParams{
-			EnableArbOS:               true,
-			AllowDebugPrecompiles:     false,
-			DataAvailabilityCommittee: false,
-			InitialArbOSVersion:       32,
-			InitialChainOwner:         common.HexToAddress("0x860C58951A77ac2F2Cb452cC9F36B1d1FdF7c521"),
-			GenesisBlockNum:           0,
-			MaxCodeSize:               24576,
-			MaxInitCodeSize:           49152,
-		},
-		Clique: &params.CliqueConfig{
-			Period: 0,
-			Epoch:  0,
-		},
-	}
+	// 4. Create initialization data reader - set correct chain owner
+	initDataReader := statetransfer.NewMemoryInitDataReader(&statetransfer.ArbosInitializationInfo{
+		ChainOwner: common.HexToAddress(chainConfig.ArbitrumChainParams.InitialChainOwner.Hex()),
+		Accounts:   accounts,
+	})
+
+	log.Info("ArbitrumChainParams", "InitialArbOSVersion", chainConfig.ArbitrumChainParams.InitialArbOSVersion, "InitialChainOwner", chainConfig.ArbitrumChainParams.InitialChainOwner)
+
+	// Now update with the method values
+	chainConfig.ArbitrumChainParams.MaxCodeSize = chainConfig.MaxCodeSize()
+	chainConfig.ArbitrumChainParams.MaxInitCodeSize = chainConfig.MaxInitCodeSize()
+
 	// Manually construct JSON serialization of chain config, completely matching real node format (field order and content)
-	serializedChainConfig := fmt.Sprintf(`{"homesteadBlock":0,"daoForkBlock":null,"daoForkSupport":true,"eip150Block":0,"eip150Hash":"0x0000000000000000000000000000000000000000000000000000000000000000","eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":0,"berlinBlock":0,"londonBlock":0,"clique":{"period":0,"epoch":0},"arbitrum":{"EnableArbOS":true,"AllowDebugPrecompiles":false,"DataAvailabilityCommittee":false,"InitialArbOSVersion":%d,"GenesisBlockNum":0,"MaxCodeSize":24576,"MaxInitCodeSize":49152,"InitialChainOwner":"%s"},"chainId":%d}`,
-		chainConfig.ArbitrumChainParams.InitialArbOSVersion, chainConfig.ArbitrumChainParams.InitialChainOwner.Hex(), chainConfig.ChainID)
+	serializedChainConfig := fmt.Sprintf(`{"homesteadBlock":0,"daoForkBlock":null,"daoForkSupport":true,"eip150Block":0,"eip150Hash":"0x0000000000000000000000000000000000000000000000000000000000000000","eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":0,"berlinBlock":0,"londonBlock":0,"clique":{"period":0,"epoch":0},"arbitrum":{"EnableArbOS":true,"AllowDebugPrecompiles":false,"DataAvailabilityCommittee":false,"InitialArbOSVersion":%d,"GenesisBlockNum":0,"MaxCodeSize":%d,"MaxInitCodeSize":%d,"InitialChainOwner":"%s"},"chainId":%d}`,
+		chainConfig.ArbitrumChainParams.InitialArbOSVersion,
+		chainConfig.MaxCodeSize(),
+		chainConfig.MaxInitCodeSize(),
+		chainConfig.ArbitrumChainParams.InitialChainOwner.Hex(),
+		chainConfig.ChainID)
 
 	// 5. Create initialization message
 	initMessage := &arbostypes.ParsedInitMessage{
@@ -135,17 +125,21 @@ func StateRootFromGenesis(genesisPath string) (string, error) {
 		ChainConfig:           chainConfig,
 		SerializedChainConfig: []byte(serializedChainConfig),
 	}
-	log.Info("chainConfig", "chainConfig", chainConfig)
-	log.Info("serializedChainConfig", "serializedChainConfig", string(serializedChainConfig))
-	log.Info("initMessage", "initMessage", initMessage)
 
 	// 6. Call CalculateArbosStateHash
-	stateRoot, err := CalculateArbosStateHash(initDataReader, chainConfig, initMessage, 0)
+	stateRoot, err := CalculateArbosStateHash(initDataReader, chainConfig, initMessage, gen.Timestamp)
 	if err != nil {
 		return "", err
 	}
 
-	// 7. Output state root
-	return stateRoot.Hex(), nil
-	// return "", nil
+	// 7. Create genesis block and calculate block hash
+	parentHash := common.Hash{} // Genesis block has no parent, so use zero hash
+	blockNumber := uint64(0)    // Genesis block number is 0
+	timestamp := uint64(0)      // Use timestamp from genesis.json
+
+	genesisBlock := MakeGenesisBlock(parentHash, blockNumber, timestamp, stateRoot, chainConfig)
+	blockHash := genesisBlock.Hash()
+
+	// 8. Return both state root and block hash
+	return fmt.Sprintf("State Root: %s\nBlock Hash: %s", stateRoot.Hex(), blockHash.Hex()), nil
 }

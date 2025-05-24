@@ -123,15 +123,6 @@ func initializeArbosAccount(_ *state.StateDB, arbosStateInstance *arbosState.Arb
 }
 
 func CalculateArbosStateHash(initData statetransfer.InitDataReader, chainConfig *params.ChainConfig, initMessage *arbostypes.ParsedInitMessage, timestamp uint64) (root common.Hash, err error) {
-	// fmt.Println("CalculateArbosStateHash", initData, chainConfig, initMessage, timestamp)
-	log.Info("CalculateArbosStateHash started", "timestamp", timestamp)
-
-	// Log key fields of initMessage
-	log.Info("InitMessage fields",
-		"ChainId", initMessage.ChainId,
-		"InitialL1BaseFee", initMessage.InitialL1BaseFee,
-		"SerializedChainConfig", string(initMessage.SerializedChainConfig),
-		"ChainConfig", initMessage.ChainConfig)
 
 	// Use simple in-memory database, no complex configuration needed
 	db := rawdb.NewMemoryDatabase()
@@ -147,32 +138,11 @@ func CalculateArbosStateHash(initData statetransfer.InitDataReader, chainConfig 
 
 	log.Info("Initial state", "root", statedb.IntermediateRoot(true))
 
-	// Initialize precompiled contract mappings, this is important!
+	// Initialize gethhook will initialize precompiles, which is important when we calculate arbos state hash
 	gethhook.RequireHookedGeth()
-	log.Info("Precompiles initialized", "count", len(arbosState.PrecompileMinArbOSVersions))
+	log.Info("Geth hook and Precompiles initialized", "Precompilecount", len(arbosState.PrecompileMinArbOSVersions))
 
 	burner := burn.NewSystemBurner(nil, false)
-	// Create default ArbOSInit configuration
-	// genesisArbOSInit := &params.ArbOSInit{}
-	log.Info("Calling InitializeArbosState",
-		"chainId", chainConfig.ChainID,
-		"initialArbOSVersion", chainConfig.ArbitrumChainParams.InitialArbOSVersion,
-		"initialChainOwner", chainConfig.ArbitrumChainParams.InitialChainOwner,
-		"genesisBlockNum", chainConfig.ArbitrumChainParams.GenesisBlockNum)
-
-	// Log key chainConfig fields that will be used by InitializeArbosState method
-	log.Info("ChainConfig fields used in InitializeArbosState",
-		"ChainID", chainConfig.ChainID,
-		"ArbitrumChainParams.InitialArbOSVersion", chainConfig.ArbitrumChainParams.InitialArbOSVersion,
-		"ArbitrumChainParams.InitialChainOwner", chainConfig.ArbitrumChainParams.InitialChainOwner,
-		"ArbitrumChainParams.GenesisBlockNum", chainConfig.ArbitrumChainParams.GenesisBlockNum,
-		"ArbitrumChainParams.EnableArbOS", chainConfig.ArbitrumChainParams.EnableArbOS,
-		"ArbitrumChainParams.AllowDebugPrecompiles", chainConfig.ArbitrumChainParams.AllowDebugPrecompiles,
-		"ArbitrumChainParams.DataAvailabilityCommittee", chainConfig.ArbitrumChainParams.DataAvailabilityCommittee,
-		"ArbitrumChainParams.MaxCodeSize", chainConfig.ArbitrumChainParams.MaxCodeSize,
-		"ArbitrumChainParams.MaxInitCodeSize", chainConfig.ArbitrumChainParams.MaxInitCodeSize)
-
-	log.Info("Before InitializeArbosState", "root", statedb.IntermediateRoot(true))
 
 	arbosStateInstance, err := arbosState.InitializeArbosState(statedb, burner, chainConfig, nil, initMessage)
 	if err != nil {
@@ -181,7 +151,7 @@ func CalculateArbosStateHash(initData statetransfer.InitDataReader, chainConfig 
 	log.Info("After InitializeArbosState", "root", statedb.IntermediateRoot(true))
 
 	// Print detailed ArbosState information
-	logArbosStateDetails(arbosStateInstance)
+	// logArbosStateDetails(arbosStateInstance)
 
 	// Set chain owner
 	chainOwner, err := initData.GetChainOwner()
@@ -193,7 +163,6 @@ func CalculateArbosStateHash(initData statetransfer.InitDataReader, chainConfig 
 		if err != nil {
 			return common.Hash{}, err
 		}
-		log.Info("After adding chain owner", "owner", chainOwner, "root", statedb.IntermediateRoot(true))
 	}
 
 	// Initialize address table
@@ -254,20 +223,17 @@ func CalculateArbosStateHash(initData statetransfer.InitDataReader, chainConfig 
 		}
 
 		statedb.SetBalance(account.Addr, uint256.MustFromBig(account.EthBalance), tracing.BalanceChangeUnspecified)
-		log.Info("After SetBalance", "addr", account.Addr, "balance", account.EthBalance, "root", statedb.IntermediateRoot(true))
 
 		statedb.SetNonce(account.Addr, account.Nonce, tracing.NonceChangeUnspecified)
-		log.Info("After SetNonce", "addr", account.Addr, "nonce", account.Nonce, "root", statedb.IntermediateRoot(true))
 
 		if account.ContractInfo != nil {
 			statedb.SetCode(account.Addr, account.ContractInfo.Code)
-			log.Info("After SetCode", "addr", account.Addr, "codeLen", len(account.ContractInfo.Code), "root", statedb.IntermediateRoot(true))
 
 			for k, v := range account.ContractInfo.ContractStorage {
 				statedb.SetState(account.Addr, k, v)
-				log.Info("After SetState", "addr", account.Addr, "key", k, "value", v, "root", statedb.IntermediateRoot(true))
 			}
 		}
+		log.Info("After initialize Account", "addr", account.Addr, "root", statedb.IntermediateRoot(true))
 	}
 	if err := accountDataReader.Close(); err != nil {
 		return common.Hash{}, err
