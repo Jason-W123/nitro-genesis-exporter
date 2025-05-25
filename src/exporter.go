@@ -33,17 +33,17 @@ func main() {
 	}
 
 	// Calculate state root
-	stateRoot, err := StateRootFromGenesis(genesisPath)
+	rootInfo, err := StateAndBlockRootFromGenesis(genesisPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error calculating state root: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Output result
-	fmt.Printf("%s\n", stateRoot)
+	fmt.Printf("%s\n", rootInfo)
 }
 
-func StateRootFromGenesis(genesisPath string) (string, error) {
+func StateAndBlockRootFromGenesis(genesisPath string) (string, error) {
 	// 1. Read genesis.json
 	genesisJson, err := os.ReadFile(genesisPath)
 	if err != nil {
@@ -107,10 +107,6 @@ func StateRootFromGenesis(genesisPath string) (string, error) {
 
 	log.Info("ArbitrumChainParams", "InitialArbOSVersion", chainConfig.ArbitrumChainParams.InitialArbOSVersion, "InitialChainOwner", chainConfig.ArbitrumChainParams.InitialChainOwner)
 
-	// Now update with the method values
-	chainConfig.ArbitrumChainParams.MaxCodeSize = chainConfig.MaxCodeSize()
-	chainConfig.ArbitrumChainParams.MaxInitCodeSize = chainConfig.MaxInitCodeSize()
-
 	// Manually construct JSON serialization of chain config, completely matching real node format (field order and content)
 	serializedChainConfig := fmt.Sprintf(`{"homesteadBlock":0,"daoForkBlock":null,"daoForkSupport":true,"eip150Block":0,"eip150Hash":"0x0000000000000000000000000000000000000000000000000000000000000000","eip155Block":0,"eip158Block":0,"byzantiumBlock":0,"constantinopleBlock":0,"petersburgBlock":0,"istanbulBlock":0,"muirGlacierBlock":0,"berlinBlock":0,"londonBlock":0,"clique":{"period":0,"epoch":0},"arbitrum":{"EnableArbOS":true,"AllowDebugPrecompiles":false,"DataAvailabilityCommittee":false,"InitialArbOSVersion":%d,"GenesisBlockNum":0,"MaxCodeSize":%d,"MaxInitCodeSize":%d,"InitialChainOwner":"%s"},"chainId":%d}`,
 		chainConfig.ArbitrumChainParams.InitialArbOSVersion,
@@ -122,7 +118,7 @@ func StateRootFromGenesis(genesisPath string) (string, error) {
 	// 5. Create initialization message
 	initMessage := &arbostypes.ParsedInitMessage{
 		ChainId:               chainConfig.ChainID,
-		InitialL1BaseFee:      big.NewInt(109320000),
+		InitialL1BaseFee:      big.NewInt(100000000),
 		ChainConfig:           chainConfig,
 		SerializedChainConfig: []byte(serializedChainConfig),
 	}
