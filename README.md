@@ -61,7 +61,7 @@ go build -o nitro-genesis-exporter ./src/
 State Root: 0xdd4441cbdde99d67976c9ac698d4088edb6129d9b0f9da875eb61ad80e01ff0d
 Block Hash: 0x1234567890abcdef...
 ```
-
+(If you get a different hash, it might because your rollup created or will be created with a different gas price, this code default it as 100000000 wei)
 ## Genesis JSON Format
 
 The tool expects a standard Arbitrum genesis.json file with the following structure:
