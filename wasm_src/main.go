@@ -48,7 +48,6 @@ func wasm_calculateStateRoot(this js.Value, args []js.Value) interface{} {
 	// Note: The actual StateAndBlockRootFromGenesis function uses dependencies
 	// (like fastcache, system calls, etc.) that are not compatible with WASM.
 	// This is a demonstration that parses the input but cannot perform the full calculation.
-
 	stateRoot, blockHash, err := exporter.StateAndBlockRootFromGenesis(gen)
 	if err != nil {
 		return js.ValueOf(map[string]interface{}{
@@ -56,11 +55,9 @@ func wasm_calculateStateRoot(this js.Value, args []js.Value) interface{} {
 		})
 	}
 
-	// TODO: Implement actual state root calculation here
 	// Since full nitro dependencies are not available in WASM, return a sample result
 	return js.ValueOf(map[string]interface{}{
 		"success":   true,
-		"message":   "WASM version does not support full calculation yet, please use native version",
 		"stateRoot": stateRoot,
 		"blockHash": blockHash,
 		"chainId":   gen.Config.ChainID.String(),
