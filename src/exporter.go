@@ -1,4 +1,4 @@
-package main
+package exporter
 
 import (
 	"encoding/json"
@@ -32,41 +32,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Calculate state root
-	rootInfo, err := StateAndBlockRootFromGenesis(genesisPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error calculating state root: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Output result
-	fmt.Printf("%s\n", rootInfo)
-}
-
-func StateAndBlockRootFromGenesis(genesisPath string) (string, error) {
-	// 1. Read genesis.json
+	// Read genesis.json
 	genesisJson, err := os.ReadFile(genesisPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to read genesis file: %v", err)
+		fmt.Errorf("failed to read genesis file: %v", err)
+		os.Exit(1)
 	}
 
 	// Debug: Print JSON info only when it's small (to avoid overwhelming output)
 	if len(genesisJson) < 1000 {
 		log.Info("Raw genesis JSON content", "content", string(genesisJson))
+		os.Exit(1)
 	}
 	log.Info("JSON file info", "bytes", len(genesisJson), "path", genesisPath)
 
 	var gen core.Genesis
 	if err := json.Unmarshal(genesisJson, &gen); err != nil {
-		return "", fmt.Errorf("failed to unmarshal genesis JSON: %v", err)
+		fmt.Errorf("failed to unmarshal genesis JSON: %v", err)
+		os.Exit(1)
 	}
 
 	// Validate required fields
 	if gen.Config == nil {
-		return "", fmt.Errorf("genesis config is missing")
+		fmt.Errorf("genesis config is missing")
+		os.Exit(1)
 	}
 	if gen.Config.ArbitrumChainParams.InitialChainOwner == (common.Address{}) {
-		return "", fmt.Errorf("initial chain owner is missing in genesis config")
+		fmt.Errorf("initial chain owner is missing in genesis config")
+		os.Exit(1)
 	}
 
 	// Debug: Print the unmarshaled result
@@ -77,6 +70,19 @@ func StateAndBlockRootFromGenesis(genesisPath string) (string, error) {
 		"initialArbOSVersion", gen.Config.ArbitrumChainParams.InitialArbOSVersion,
 		"initialChainOwner", gen.Config.ArbitrumChainParams.InitialChainOwner,
 		"accounts", len(gen.Alloc))
+
+	// Calculate state root
+	stateRoot, blockHash, err := StateAndBlockRootFromGenesis(gen)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error calculating state root: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Sprintf("State Root: %s\nBlock Hash: %s", stateRoot, blockHash)
+
+}
+
+func StateAndBlockRootFromGenesis(gen core.Genesis) (string, string, error) {
 
 	// 2. Assemble account information (if genesis.json is empty, use empty account list)
 	var accounts []statetransfer.AccountInitializationInfo
@@ -126,7 +132,7 @@ func StateAndBlockRootFromGenesis(genesisPath string) (string, error) {
 	// 6. Call CalculateArbosStateHash
 	stateRoot, err := CalculateArbosStateHash(initDataReader, chainConfig, initMessage, gen.Timestamp)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// 7. Create genesis block and calculate block hash
@@ -138,5 +144,5 @@ func StateAndBlockRootFromGenesis(genesisPath string) (string, error) {
 	blockHash := genesisBlock.Hash()
 
 	// 8. Return both state root and block hash
-	return fmt.Sprintf("State Root: %s\nBlock Hash: %s", stateRoot.Hex(), blockHash.Hex()), nil
+	return stateRoot.Hex(), blockHash.Hex(), nil
 }
